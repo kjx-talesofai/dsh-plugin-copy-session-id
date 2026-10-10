@@ -1,8 +1,8 @@
 {
   "name": "dsh-plugin-copy-session-id",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Copy a Session's ID straight from the sidebar Session menu.",
+  "description": "Copy a Session's ID from the sidebar Session menu or the open Session's header.",
   "license": "MIT",
   "author": "Jiaxin Kou <https://hypersampling.com>",
   "repository": {

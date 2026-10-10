@@ -47,6 +47,7 @@ const clientSource = readFileSync(join(root, 'client.js'), 'utf8')
 const NS = pkg.name
 const MENU_SLOT = 'sidebar.workspaces.session.menu.item'
 const OVERLAY_SLOT = 'shell.overlay'
+const HEADER_SLOT = 'conversation.session.header.utilities'
 const PRIMITIVES = '@deepseek-ai/dsh-client-ui-primitives'
 const SESSION_ID = 'session-e7797998-430a-4d2c-aba6-6d7f441f4f70'
 
@@ -90,6 +91,7 @@ function fakeReact() {
  */
 function fakePrimitives({ onCopy = () => {}, result = true } = {}) {
   return {
+    Button: () => null,
     IconCopyOutlineRegular: () => null,
     IconWarningOutlineRegular: () => null,
     MenuItemButton: () => null,
@@ -227,9 +229,11 @@ function boot(primitives, onCopy, { activeLocale = 'zh', clipboard = true } = {}
 function entries(state) {
   const menu = state.registrations.find((entry) => entry.options.name === MENU_SLOT)
   const overlay = state.registrations.find((entry) => entry.options.name === OVERLAY_SLOT)
+  const header = state.registrations.find((entry) => entry.options.name === HEADER_SLOT)
   assert.ok(menu, `a ${MENU_SLOT} registration exists`)
   assert.ok(overlay, `a ${OVERLAY_SLOT} registration exists`)
-  return { menu, overlay }
+  assert.ok(header, `a ${HEADER_SLOT} registration exists`)
+  return { menu, overlay, header }
 }
 
 /**
@@ -282,14 +286,17 @@ for (const hostPrimitives of [true, false]) {
       hostPrimitives ? fakePrimitives({ onCopy: (text) => copied.push(text) }) : {},
       (text) => copied.push(text),
     )
-    const { menu, overlay } = entries(state)
+    const { menu, overlay, header } = entries(state)
 
     // Spread into this realm: arrays built inside the vm have a foreign prototype.
     assert.deepEqual([...state.module.inject], ['slots', 'locale'])
-    assert.equal(state.registrations.length, 2, 'exactly the menu row and the toast seat')
+    assert.equal(state.registrations.length, 3, 'the menu row, the header control, and the toast seat')
     assert.equal(menu.options.id, 'dsh-plugin-copy-session-id')
     assert.equal(overlay.options.id, 'dsh-plugin-copy-session-id.toast')
     assert.equal(menu.options.order, 500, 'the row sits after the shipped Archive (400)')
+    assert.equal(header.options.id, 'dsh-plugin-copy-session-id.header')
+    assert.equal(header.options.order, -5, 'between open-in-app (-10) and the header menu (0)')
+    assert.equal(header.options.locale, NS)
     assert.equal(menu.options.locale, NS, 'the row needs the renderer to bind `t`')
     assert.equal(overlay.options.locale, undefined, 'the toast resolves no copy of its own')
 
@@ -411,6 +418,41 @@ test('a row still labels itself when the renderer binds no `t`', () => {
   assert.equal(textOf(row), 'Copy Session ID', 'the label degrades instead of rendering a raw key')
 })
 
+test('the header control copies the opened Session, subagent or not', async () => {
+  const copied = []
+  const state = boot(fakePrimitives({ onCopy: (text) => copied.push(text) }), (text) => copied.push(text))
+  const { header, overlay } = entries(state)
+
+  // Whatever `conversation.session.header` is showing — including a subagent
+  // Session, whose sidebar row the host hides — this receives that Session id.
+  const subagentSessionId = '4c41ad37-6840-4e4d-a0dc-f8ad13cdbdc5'
+  const control = header.component({ ...entryProps(state, header), sessionId: subagentSessionId })
+
+  assert.equal(control.type, state.primitives.Button, 'the host atom carries the control')
+  assert.equal(control.props['aria-label'], state.dictionaries.get(NS).zh['header.copyId'])
+  assert.equal(control.props.title, state.dictionaries.get(NS).zh['header.copyId'])
+  assert.equal(control.props.size, 'sm')
+
+  control.props.onClick()
+  await tick()
+  assert.deepEqual(copied, [subagentSessionId])
+  assert.equal(overlay.component(entryProps(state, overlay)).props.text, state.dictionaries.get(NS).zh['toast.copied'])
+})
+
+test('the header control degrades instead of throwing without the host atoms', () => {
+  const state = boot({}, () => {})
+  const { header } = entries(state)
+  const control = header.component({ ...entryProps(state, header), sessionId: SESSION_ID })
+
+  // The stand-in is a component, so it is markup only once rendered.
+  assert.notEqual(control.type, state.primitives.Button)
+  const rendered = render(control)
+  assert.equal(rendered.type, 'button')
+  assert.equal(rendered.props.children, '⧉', 'a text glyph stands in for the icon')
+  assert.equal(rendered.props.size, undefined, 'the host atom prop is not spread onto the DOM')
+  assert.match(rendered.props.style.color, /label-tertiary/)
+})
+
 test('a row with no Session id is not offered at all', () => {
   const state = boot(fakePrimitives(), () => {})
   const { menu } = entries(state)
@@ -463,7 +505,7 @@ test('the overlay entry subscribes with a stable identity across renders', () =>
 
 test('a hot re-apply does not trip the locale duplicate guard', () => {
   const state = boot(fakePrimitives(), () => {})
-  assert.equal(state.effects.length, 3, 'the locale registration plus both slot injections')
+  assert.equal(state.effects.length, 4, 'the locale registration plus all three slot injections')
   // Tear the plugin down the way the loader does before re-applying it...
   for (const dispose of state.effects) dispose()
   // ...then apply again, as a hot reload would. Without the locale disposer the

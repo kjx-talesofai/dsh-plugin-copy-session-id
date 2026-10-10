@@ -52,11 +52,13 @@ window.__ModuleLoader__.load({
     const DICTS = {
       en: {
         'menu.copyId': 'Copy Session ID',
+        'header.copyId': 'Copy this Session ID',
         'toast.copied': 'Session ID copied',
         'toast.failed': 'Copy failed — copy the Session ID manually',
       },
       zh: {
         'menu.copyId': '复制会话 ID',
+        'header.copyId': '复制当前会话 ID',
         'toast.copied': '已复制会话 ID',
         'toast.failed': '复制失败，请手动复制会话 ID',
       },
@@ -104,6 +106,34 @@ window.__ModuleLoader__.load({
           icon === undefined ? null : h('span', { 'aria-hidden': 'true' }, icon),
           h('span', null, children),
         ),
+      )
+    }
+
+    /**
+     * Icon-sized button used only when the host `Button` is missing. `size` is
+     * dropped rather than spread: it is the host atom's prop, not a DOM one.
+     */
+    function FallbackButton({ children, size: _size, ...props }) {
+      return h(
+        'button',
+        {
+          type: 'button',
+          ...props,
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            padding: 0,
+            border: 0,
+            borderRadius: 'var(--dsw-radius-sm)',
+            background: 'transparent',
+            color: 'var(--dsw-alias-label-tertiary)',
+            cursor: 'pointer',
+          },
+        },
+        children,
       )
     }
 
@@ -190,6 +220,7 @@ window.__ModuleLoader__.load({
       }
     }
 
+    const Button = primitives.Button ?? FallbackButton
     const MenuItemButton = primitives.MenuItemButton ?? FallbackMenuItem
     const Toast = primitives.Toast ?? FallbackToast
     // Kept as `undefined` when absent: `MenuItemButton` renders its icon seat for
@@ -273,6 +304,38 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The Session header's copy control, in the utilities row beside the header's
+     * own "... " menu.
+     *
+     * This is the surface that reaches every Session you can open — including the
+     * subagent Sessions the sidebar never lists (it hides rows whose summary
+     * carries `origin: 'subagent'`), which is exactly where the menu row above
+     * cannot go. The header's "..." dropdown itself has no slot: its items are
+     * hardcoded by the package that owns it, so an additive sibling control is the
+     * only place a plugin can sit.
+     *
+     * @param props.sessionId - the Session currently open (standard prop).
+     * @param props.copySessionId - the shared action (registration inject face).
+     * @param props.t - the locale seat bound from this registration's namespace.
+     * @returns the control.
+     */
+    function HeaderCopySessionIdButton({ sessionId, copySessionId, t }) {
+      const label = typeof t === 'function' ? t('header.copyId') : DICTS.en['header.copyId']
+      return h(
+        Button,
+        {
+          size: 'sm',
+          'aria-label': label,
+          title: label,
+          onClick: () => {
+            copySessionId(sessionId)
+          },
+        },
+        CopyIcon === undefined ? '⧉' : h(CopyIcon, {}),
+      )
+    }
+
+    /**
      * The overlay seat that reports the copy outcome. It renders no copy of its
      * own — the menu row already resolved the message — so it declares no locale
      * seat.
@@ -303,7 +366,7 @@ window.__ModuleLoader__.load({
     const inject = ['slots', 'locale']
 
     /**
-     * Register the dictionaries, the menu row, and the toast seat.
+     * Register the dictionaries, the two copy surfaces, and the toast seat.
      * @param ctx - client root context.
      */
     function apply(ctx) {
@@ -313,6 +376,25 @@ window.__ModuleLoader__.load({
       const toast = createToastStore()
       const report = (failed) => {
         toast.show(t(failed ? 'toast.failed' : 'toast.copied'), failed)
+      }
+      /**
+       * The one copy action, shared by the sidebar row and the header control.
+       * @param sessionId - the Session whose id is copied.
+       */
+      const copySessionId = (sessionId) => {
+        const text = String(sessionId ?? '')
+        if (text.length === 0) return
+        // The primitive can reject as well as resolve false — its textarea tail
+        // sits outside its own try — and a silently dead control is the one
+        // outcome this action must never produce.
+        void writeClipboard(text).then(
+          (ok) => {
+            report(ok !== true)
+          },
+          () => {
+            report(true)
+          },
+        )
       }
 
       ctx.effect(
@@ -340,25 +422,24 @@ window.__ModuleLoader__.load({
             id: 'dsh-plugin-copy-session-id',
             order: 500,
             locale: NS,
-            inject: () => ({
-              copySessionId: (sessionId) => {
-                const text = String(sessionId ?? '')
-                if (text.length === 0) return
-                // The primitive can reject as well as resolve false — its textarea
-                // tail sits outside its own try — and a silently dead row is the
-                // one outcome this action must never produce.
-                void writeClipboard(text).then(
-                  (ok) => {
-                    report(ok !== true)
-                  },
-                  () => {
-                    report(true)
-                  },
-                )
-              },
-            }),
+            inject: () => ({ copySessionId }),
           },
           CopySessionIdMenuItem,
+        ),
+      )
+
+      ctx.slots.inject('conversation.session.header.utilities', () =>
+        ctx.slots.register(
+          {
+            name: 'conversation.session.header.utilities',
+            id: 'dsh-plugin-copy-session-id.header',
+            // Between `open-in-app` (-10) and the shipped "..." menu (0), so the
+            // header keeps its "more" affordance furthest right.
+            order: -5,
+            locale: NS,
+            inject: () => ({ copySessionId }),
+          },
+          HeaderCopySessionIdButton,
         ),
       )
     }
