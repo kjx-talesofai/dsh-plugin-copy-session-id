@@ -1,0 +1,11 @@
+# dsh-plugin-copy-session-id — bundle layer.
+#
+# One row mounts the package (dual-face: the same package also declares
+# `dsh.client`, so the harness serves its browser half into window.__DSH_BOOT__
+# and the row renders one extra entry in the sidebar Session "..." menu).
+#
+# There is nothing to configure: the menu row reads the Session id the workspace
+# browser already hands it and writes it to the clipboard.
+- insert:
+    - id: copy-session-id
+      name: 'dsh-plugin-copy-session-id'

@@ -1,0 +1,69 @@
+{
+  "name": "dsh-plugin-copy-session-id",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Copy a Session's ID straight from the sidebar Session menu.",
+  "license": "MIT",
+  "author": "Jiaxin Kou <https://hypersampling.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kjx-talesofai/dsh-plugin-copy-session-id.git"
+  },
+  "homepage": "https://github.com/kjx-talesofai/dsh-plugin-copy-session-id",
+  "bugs": {
+    "url": "https://github.com/kjx-talesofai/dsh-plugin-copy-session-id/issues"
+  },
+  "icon": "./assets/icon.svg",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "default": "./index.js"
+    },
+    "./client": {
+      "default": "./client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "assets/icon.svg",
+    "locale/*.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.2.0-rc.1 <0.3.0-0"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "engines": {
+      "dsh": ">=0.2.0-rc.1 <0.3.0-0"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "session",
+    "clipboard"
+  ],
+  "scripts": {
+    "test": "node --test tests/plugin.test.mjs"
+  }
+}
